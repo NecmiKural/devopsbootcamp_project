@@ -34,6 +34,10 @@ Sol üstteki panelden Kubernetes Engine'ne girilir ve Create Cluster denilip Aut
 
 ### 3) Terraform ile Cluster Oluşturma
 
+[Provision a GKE Cluster (Google Cloud) | Terraform - HashiCorp Learn](https://learn.hashicorp.com/tutorials/terraform/gke)
+
+
+
 
 
 # Kubernetes Üzerine MySQL ve WordPress Kurulumu
@@ -56,10 +60,10 @@ MySQL ve WordPress verileri saklayabilmek için PersistentVolumes(PV) ve Persist
 mkdir wordpress-mysql && cd wordpress-mysql
 ```
 
-Kullanacağımız dosyaları çalıştıracağımız *setup.yaml* isminde tek bir dosya oluşturabiliriz. Bu dosyanın içerisinde gizli kalacak şifremizi, MySQL ve WordPress için ayarları barındırabiliriz. Bunun için şu komutu gireriz:
+Kullanacağımız dosyaları çalıştıracağımız *kustomization.yaml* isminde tek bir dosya oluşturabiliriz. Bu dosyanın içerisinde gizli kalacak şifremizi, MySQL ve WordPress için ayarları barındırabiliriz. Bunun için şu komutu gireriz:
 
 ```shell
-cat <<EOF >./setup.yaml
+cat <<EOF >./kustomization.yaml
 secretGenerator:
 - name: mysql-pass
   literals:
@@ -242,20 +246,20 @@ spec:
 Şimdi hazırladığımı bu iki ayar dosyamızı kurulum dosyamıza bağlayabiliriz.
 
 ```shell
-cat <<EOF >>./setup.yaml
+cat <<EOF >>./kustomization.yaml
 resources:
   - mysql-deployment.yaml
   - wordpress-deployment.yaml
 EOF
 ```
 
-Böylece `setup.yaml` WordPress ve MySQL kurulumu için gerekli bilgilere sahip oluyor. Şimdi bunları yedirebiliriz
+Böylece `kustomization.yaml` WordPress ve MySQL kurulumu için gerekli bilgilere sahip oluyor. Şimdi bunları yedirebiliriz
 
 ```shell
 kubectl apply -k ./
 ```
 
-Çalışıyor mu diye kontrol edebiliriz:
+Çalışıyorlar mı kontrol ederiz:
 
 - Secret çalışıyor mu diye bakmak için:
 
@@ -266,5 +270,143 @@ kubectl get secrets
 - Çıktısı şöyle olmalı:
 
 ```shell
-
+NAME                    TYPE     DATA   AGE
+mysql-pass-5m26tmdb5k   Opaque   1      64s
 ```
+
+![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-51-49-image.png)
+
+- PersistentVolume dinamik olarak çalışıyor mu diye doğrularız:
+
+```shell
+kubectl get pvc
+```
+
+- Çıktısı bu şekilde olmalıdır:
+
+```shell
+NAME             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+mysql-pv-claim   Bound    pvc-6572bdcc-ac53-4f62-a45b-e3f1d94de636   20Gi       RWO            standard       72s
+wp-pv-claim      Bound    pvc-1255f434-1a34-4d7a-9d83-d31f9182f7b4   20Gi       RWO            standard       72s
+```
+
+![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-54-47-image.png)
+
+- Pod çalışıyor mu diye bakmak için:
+
+```shell
+kubectl get pods
+```
+
+- Çıktısı böyle olmalıdır:
+
+```shell
+NAME                               READY   STATUS    RESTARTS   AGE
+wordpress-6578474688-mfd9p         1/1     Running   0          80s
+wordpress-mysql-86459577c8-pb2bp   1/1     Running   0          80s
+```
+
+![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-56-37-image.png)
+
+- Service çalışıyor mu diye bakmak için:
+
+```shell
+kubectl get services wordpress
+```
+
+- Çıktısı şöyle olmalıdır:
+
+```shell
+NAME        TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+wordpress   LoadBalancer   10.106.176.110   <pending>     80:31173/TCP   88s
+```
+
+![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-58-31-image.png)
+
+Böylece başarılı bir şekilde WordPress ve MySQL'i başlattığımızı görebiliriz. 
+
+
+
+### Ingress Tanımı ile Dışarıdan Trafik Alması için Domain Ayarı
+
+WordPress uygulamasını dışarı aktarmak için Service veya Ingress kullanılabilir. Service, TCP Network Load Balancer  ve bölgesel IP adresi kullanır. Ingress, HTTP(S) Load Balancer ve global IP kullanır. 
+
+Ingress kullanmak için önce global statik IP oluşturmalıyız
+
+```bash
+gcloud compute addresses create wordpress-ip --global
+```
+
+Böylece `wordpress-ip` isminde IP adresi oluşur.  Kontrol etmek için `gcloud compute addresses describe helloweb-ip --global` yazılıp adres çıktısı kontrol edilir. 
+
+`type:NodePort` barındıran Service dosyası ile servis adı ve statik IP değerini bilen bir `Ingress` hazırlamamız gerekiyor.
+
+```bash
+vim wordpress-ingress-static-ip.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wordpress
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: wordpress-ip
+  labels:
+    app: wordpress
+spec:
+  defaultBackend:
+    service:
+      name: wordpress-backend
+      port:
+        number: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordress-backend
+  labels:
+    app: wordpress
+spec:
+  type: NodePort
+  selector:
+    app: wordpress
+    tier: web
+  ports:
+  - port: 8080
+    targetPort: 8080
+---
+```
+
+Global IP adresini HTTP(S) Load Balancer ile bağdaştırıyoruz.
+
+Sonra bunları uyguluyoruz:
+
+```shell
+kubectl apply -f wordpress-ingress-static-ip.yaml
+```
+
+Çıktısı şu şekilde oluyor:
+
+```bash
+ingress "helloweb" created
+service "helloweb-backend" created
+```
+
+Load balancer ile bağdaşan IP adresimizi görebilmek için:
+
+```bash
+kubectl get ingress
+```
+
+yazılır ve çıktı alınır. 
+
+```shell
+NAME        CLASS    HOSTS   ADDRESS          PORTS     AGE
+wordpress   <none>   *       34.141.44.125    80        11s
+```
+
+http://34.141.44.125/ adresine gidildiğinde sitenin açıldığını görebiliriz. 
+
+
+
