@@ -618,4 +618,4 @@ NAME        CLASS    HOSTS   ADDRESS          PORTS     AGE
 wordpress   <none>   *       34.141.44.125    80        11s
 ```
 
-http://34.141.44.125/ adresine gidildiğinde sitenin açıldığını görebiliriz. 
+http://34.141.44.125/ adresine gidildiğinde açıldığını görebiliriz. 
