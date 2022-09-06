@@ -6,7 +6,9 @@ Bu noktadan sonra cluster oluşturmak için arayüz veya cloud shell'den komutla
 
 ### 1) Cloud Shell ile Cluster Oluşturma
 
-Ekranın sağ üst tarafından cloud shell açılır. ![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-15-08-36-image.png)
+Ekranın sağ üst tarafından cloud shell açılır. 
+
+![alt text](https://cdn.discordapp.com/attachments/926423286840193044/1016781888918139040/2022-09-04-15-08-36-image.png)
 
 Ardından aşağıdaki gibi komut girilir ve birkaç dakika sonra clusterımız hazır olur.
 
@@ -30,7 +32,7 @@ Buradaki alanlar kendi oluşturmak istediğiniz projeye göre doldurulmalıdır:
 
 Sol üstteki panelden Kubernetes Engine'ne girilir ve Create Cluster denilip Autopilot veya Manual cluster seçilir. Cluster adı ve regionu girilip ekstradan istenilen ayar varsa yapıldıktan sonra cluster hazır olur. 
 
-![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-15-28-13-image.png)
+![alt text](https://cdn.discordapp.com/attachments/926423286840193044/1016781911772905614/2022-09-04-15-28-13-image.png)
 
 ### 3) Terraform ile Cluster Oluşturma
 
@@ -157,7 +159,7 @@ variable "gke_num_nodes" {
 resource "google_container_cluster" "primary" {
   name     = "${var.project_id}-gke"
   location = var.region
-  
+
   # nodepoolsuz cluster olusturamayiz ancak ayri ayri caslisacak nodepool istiyoruz
   # bu sebeple varsayilan olarak minimum nodepool olusturup siliyoruz
   remove_default_node_pool = true
@@ -219,7 +221,6 @@ should now work.
 If you ever set or change modules or backend configuration for Terraform,
 rerun this command to reinitialize your working directory. If you forget, other
 commands will detect it and remind you to do so if necessary.
-
 ```
 
 Ardından `terraform apply` komutunu çalıştırdığımızda terraformun bizim için hazırladığı planı görebiliriz. Şuna benzer çıktılar alırız:
@@ -485,7 +486,7 @@ NAME                    TYPE     DATA   AGE
 mysql-pass-5m26tmdb5k   Opaque   1      64s
 ```
 
-![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-51-49-image.png)
+![alt text](https://cdn.discordapp.com/attachments/926423286840193044/1016782025279164547/2022-09-04-18-51-49-image.png)
 
 - PersistentVolume dinamik olarak çalışıyor mu diye doğrularız:
 
@@ -501,7 +502,7 @@ mysql-pv-claim   Bound    pvc-6572bdcc-ac53-4f62-a45b-e3f1d94de636   20Gi       
 wp-pv-claim      Bound    pvc-1255f434-1a34-4d7a-9d83-d31f9182f7b4   20Gi       RWO            standard       72s
 ```
 
-![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-54-47-image.png)
+![alt text](https://cdn.discordapp.com/attachments/926423286840193044/1016782025795055676/2022-09-04-18-54-47-image.png)
 
 - Pod çalışıyor mu diye bakmak için:
 
@@ -517,7 +518,7 @@ wordpress-6578474688-mfd9p         1/1     Running   0          80s
 wordpress-mysql-86459577c8-pb2bp   1/1     Running   0          80s
 ```
 
-![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-56-37-image.png)
+![alt text](https://cdn.discordapp.com/attachments/926423286840193044/1016782026164150352/2022-09-04-18-56-37-image.png)
 
 - Service çalışıyor mu diye bakmak için:
 
@@ -532,7 +533,9 @@ NAME        TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
 wordpress   LoadBalancer   10.106.176.110   <pending>     80:31173/TCP   88s
 ```
 
-![](C:\Users\berat\AppData\Roaming\marktext\images\2022-09-04-18-58-31-image.png)
+
+
+![alt text](https://cdn.discordapp.com/attachments/926423286840193044/1016782024427712674/2022-09-04-18-58-31-image.png)
 
 Böylece başarılı bir şekilde WordPress ve MySQL'i başlattığımızı görebiliriz. 
 
