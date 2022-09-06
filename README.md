@@ -598,8 +598,8 @@ kubectl apply -f wordpress-ingress-static-ip.yaml
 Çıktısı şu şekilde oluyor:
 
 ```bash
-ingress "helloweb" created
-service "helloweb-backend" created
+ingress "wordpress" created
+service "wordpress-backend" created
 ```
 
 Load balancer ile bağdaşan IP adresimizi görebilmek için:
