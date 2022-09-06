@@ -34,11 +34,222 @@ Sol üstteki panelden Kubernetes Engine'ne girilir ve Create Cluster denilip Aut
 
 ### 3) Terraform ile Cluster Oluşturma
 
-[Provision a GKE Cluster (Google Cloud) | Terraform - HashiCorp Learn](https://learn.hashicorp.com/tutorials/terraform/gke)
+Terraform ile cluster kurmanın avantajlarından biri yaşam döngüsü kontrolü sağlamasıdır. Cluster güncellemesi ve silmesini kolaylaştırır, otomatikleştirir.
 
+Terraform ile gerekli işlemleri yapabilmemiz için [Compute Engine API](https://console.developers.google.com/apis/api/compute.googleapis.com/overview) ve [Kubernetes Engine API](https://console.cloud.google.com/apis/api/container.googleapis.com/overview) apilerini etkinleştirmemiz gerekiyor. 
 
+gcloud SDK yüklendikten sonra projeyi tanımlamamız gerekiyor. 
 
+```powershell
+gcloud init
+```
 
+Böylece çalışmak istediğimiz proje ve bu projede çalışmak için gerekli bilgileri girmiş oluyoruz. Yetkilendirmek için de:
+
+```powershell
+gcloud auth application-default login
+```
+
+Bu da Terraformun GCloud üzerinde çalışabilmesi için gerekli yetkilendirmeleri sağlıyor.
+
+Bir klasör oluşturulur ve klasörün içerisine girilerek `terraform.tfvars` isminde bir dosya oluşurulur. Bu dosya ile GCP'da bağlanacağımız projeyi ve projenin bölgesini belirtiriz. 
+
+```bash
+mkdir terraform && cd terraform
+```
+
+```shell
+vim terraform.tfvars
+```
+
+Ardından dosyanın içi gerekli bilgilerle doldurulur.
+
+```shell
+project_id = "devopsbootcamp-359519"
+region     = "europe-west3"
+```
+
+Buradaki `project_id` ve `region` bilgilerine kendi bilgilerinizi giriniz. Kendi bilgilerinizi görmek isterseniz şu komutu kullanabilirsiniz:
+
+```shell
+gcloud config get-value project
+```
+
+Proje bilgileri girildikten sonra VCP ve subnet için bir `vpc.tf` dosyası oluşturulur ve içi gerekli bilgilerle doldurulur.
+
+```shell
+vim vpc.tf
+```
+
+```shell
+variable "project_id" {
+  description = "proje ismi"
+}
+
+variable "region" {
+  description = "bolge"
+}
+
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+# VPC
+resource "google_compute_network" "vpc" {
+  name                    = "${var.project_id}-vpc"
+  auto_create_subnetworks = "false"
+}
+
+# Subnet
+resource "google_compute_subnetwork" "subnet" {
+  name          = "${var.project_id}-subnet"
+  region        = var.region
+  network       = google_compute_network.vpc.name
+  ip_cidr_range = "10.10.0.0/24"
+}
+```
+
+Daha önce hazırladığımız dosyadaki bilgiler buradaki `region` ve `project_id` yerinde kullanılacaktır.
+
+Terraformun versiyonu en az 0.14 olmalıdır ve bunu belirtmek için `versions.tf` dosyası oluşturulup içinde bu versiyon belirtilir.
+
+```shell
+vim versions.tf
+```
+
+```shell
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "3.52.0"
+    }
+  }
+
+  required_version = ">= 0.14"
+}
+```
+
+GCP'de cluster kurabilmek ve nodepoolu(clusterdaki bi grup node) kontrol edebilmek için gerekli `gke.tf` dosyasını hazırlarız ve içini doldururuz. Nodepoolu ayrı olarak kontrol emekte fayda vardır çünkü clusterı özelleştirmemizi sağlar; podlara ayrılacak kaynakları yönetebiliriz. 
+
+```bash
+vim gke.tf
+```
+
+```shell
+variable "gke_username" {
+  default     = ""
+  description = "gke kullanici ismi"
+}
+
+variable "gke_password" {
+  default     = ""
+  description = "gke sifresi"
+}
+
+variable "gke_num_nodes" {
+  default     = 2
+  description = "gke'deki, nodepooldaki node sayisi"
+}
+
+# GKE cluster kismi
+resource "google_container_cluster" "primary" {
+  name     = "${var.project_id}-gke"
+  location = var.region
+  
+  # nodepoolsuz cluster olusturamayiz ancak ayri ayri caslisacak nodepool istiyoruz
+  # bu sebeple varsayilan olarak minimum nodepool olusturup siliyoruz
+  remove_default_node_pool = true
+  initial_node_count       = 1
+
+  network    = google_compute_network.vpc.name
+  subnetwork = google_compute_subnetwork.subnet.name
+}
+
+# ayri ayri yonetilen nodepool
+resource "google_container_node_pool" "primary_nodes" {
+  name       = "${google_container_cluster.primary.name}-node-pool"
+  location   = var.region
+  cluster    = google_container_cluster.primary.name
+  node_count = var.gke_num_nodes
+
+  node_config {
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/logging.write",
+      "https://www.googleapis.com/auth/monitoring",
+    ]
+
+    labels = {
+      env = var.project_id
+    }
+
+    # preemptible  = true
+    machine_type = "n1-standard-1"
+    tags         = ["gke-node", "${var.project_id}-gke"]
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+  }
+}
+```
+
+Gerekli dosyaları hazırladıktan sonra terraformu başlatabiliriz, böylece gerekli dosyaları indirip hazırladığımız `terraform.tfvars` dosyasındaki bilgilerle işlem başlayabilir. 
+
+```bash
+terraform init
+```
+
+Çıktısı şöyle olur:
+
+```shell
+Initializing the backend...
+
+Initializing provider plugins...
+- Reusing previous version of hashicorp/google from the dependency lock file
+- Installing hashicorp/google v3.52.0...
+- Installed hashicorp/google v3.52.0 (signed by HashiCorp)
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+
+```
+
+Ardından `terraform apply` komutunu çalıştırdığımızda terraformun bizim için hazırladığı planı görebiliriz. Şuna benzer çıktılar alırız:
+
+```shell
+An execution plan has been generated and is shown below.
+Resource actions are indicated with the following symbols:
+```
+
+```shell
+Terraform will perform the following actions:
+```
+
+```shell
+Plan: 4 to add, 0 to change, 0 to destroy.
+```
+
+Terraformun VPC, subnet, GKE clusterı ve GKE nodepoolunu oluşturmayı planladığını görebiliriz. Bu planı uygulamak için `yes` yazıp onaylanır. İşlemler 20 dakika kadar sürebiliyor. İşlemler bittikten sonra şuna benzer bir çıktı olur:
+
+```shell
+Apply complete! Resources: 4 added, 0 changed, 0 destroyed.
+```
+
+Clusterımız oluşturduktan sonra clusterımıza bağlanıp yönetebilmemiz için `kubectl` ayarlamamız gerekir. Onun için aşağıdaki komut girilir.
+
+```shell
+gcloud container clusters get-credentials $(terraform output -raw kubernetes_cluster_name) --region $(terraform output -raw region)
+```
+
+Bu noktadan sonra artık kubectl ile yazacağımız komutlar bu cluster ile çalışacaktır.
 
 # Kubernetes Üzerine MySQL ve WordPress Kurulumu
 
@@ -239,7 +450,7 @@ spec:
           claimName: wp-pv-claim
 ```
 
-- WordPress containerı web sitesi verileri için PersistentVolume'e /var/www/html konumunda bağlanır
+- WordPress containerı web sitesi verileri için PersistentVolume'e `/var/www/html` konumunda bağlanır
 
 - WordPress için gerekli olan database bilgilerini bir önceki dosyada isimlendirmiştik. Onları WORDPRESS_DB_HOST için çağırıyoruz böylece WordPress database'e Service ile bağlanabiliyor. Şifreyi de böylece alabiliyoruz. 
 
@@ -325,8 +536,6 @@ wordpress   LoadBalancer   10.106.176.110   <pending>     80:31173/TCP   88s
 
 Böylece başarılı bir şekilde WordPress ve MySQL'i başlattığımızı görebiliriz. 
 
-
-
 ### Ingress Tanımı ile Dışarıdan Trafik Alması için Domain Ayarı
 
 WordPress uygulamasını dışarı aktarmak için Service veya Ingress kullanılabilir. Service, TCP Network Load Balancer  ve bölgesel IP adresi kullanır. Ingress, HTTP(S) Load Balancer ve global IP kullanır. 
@@ -407,6 +616,3 @@ wordpress   <none>   *       34.141.44.125    80        11s
 ```
 
 http://34.141.44.125/ adresine gidildiğinde sitenin açıldığını görebiliriz. 
-
-
-
